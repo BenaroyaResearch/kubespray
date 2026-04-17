@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - "2.26.0"
+      - "2.27.0"
 
   pull_request:
 
@@ -82,7 +83,8 @@ jobs:
           fi
 
       - name: Build Ansible Image
-        if: github.event_name == 'pull_request' || (github.event_name == 'push' && steps.check-image.outputs.image_exists == 'false')
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' &&
+          steps.check-image.outputs.image_exists == 'false')
         run: |
           echo "🔨 Building new image..."
           ansible-builder build \
@@ -90,7 +92,8 @@ jobs:
           --container-runtime=docker
 
       - name: Re-tag existing image
-        if: github.event_name == 'push' && steps.check-image.outputs.image_exists == 'true'
+        if: github.event_name == 'push' && steps.check-image.outputs.image_exists ==
+          'true'
         run: |
           echo "🏷️ Re-tagging existing image with branch name..."
           # Tag the existing SHA image with the branch name using the source SHA we found
