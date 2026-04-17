@@ -44,9 +44,8 @@ jobs:
         with:
           images: ghcr.io/${{ env.OWNER }}/kubespray-ee
           tags: |
-            type=sha
-            type=ref,event=tag
-            type=ref,event=branch,pattern={{branch}},enable=${{ github.event_name == 'push' }}
+            type=sha,format=short,prefix=sha-
+            type=ref,event=branch,enable=${{ github.event_name == 'push' }}
 
       - name: Check if image exists (for pushes)
         if: github.event_name == 'push'
@@ -86,10 +85,17 @@ jobs:
         if: github.event_name == 'pull_request' || (github.event_name == 'push' &&
           steps.check-image.outputs.image_exists == 'false')
         run: |
-          echo "🔨 Building new image..."
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+
+          echo "🔨 Building new image tagged with sha-${SHORT_SHA}..."
           ansible-builder build \
-          --tag=ghcr.io/${{ env.OWNER }}/kubespray-ee:${{ steps.meta.outputs.version }} \
-          --container-runtime=docker
+            --tag=ghcr.io/${{ env.OWNER }}/kubespray-ee:sha-${SHORT_SHA} \
+            --container-runtime=docker
+
+          # Also tag with ref name (branch), so both tags exist locally
+          echo "🏷️ Tagging image with ref: ${{ github.ref_name }}"
+          docker tag ghcr.io/${{ env.OWNER }}/kubespray-ee:sha-${SHORT_SHA} \
+                    ghcr.io/${{ env.OWNER }}/kubespray-ee:${{ github.ref_name }}
 
       - name: Re-tag existing image
         if: github.event_name == 'push' && steps.check-image.outputs.image_exists ==
