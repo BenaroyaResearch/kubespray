@@ -123,3 +123,6 @@ ansible_collections
 
 # Ansible-builder files
 context/
+
+# kubespray collection tarball built for the EE (execution-environment.yml)
+ee-collections/

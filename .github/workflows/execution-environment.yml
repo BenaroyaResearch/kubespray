@@ -29,7 +29,15 @@ jobs:
           echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >>${GITHUB_ENV}
 
       - name: Install ansible-builder
-        run: pip install ansible-builder
+        # distlib: `ansible-galaxy collection build` needs it for galaxy.yml's
+        # manifest directives.
+        run: pip install ansible-builder ansible-core distlib
+
+      # The EE carries this commit's kubespray as an installed collection, so
+      # the image tag alone decides which kubespray AWX runs (DO-404).
+      # execution-environment.yml copies ee-collections/ into the image.
+      - name: Build the kubespray collection
+        run: ansible-galaxy collection build --output-path ee-collections .
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v1
@@ -105,7 +113,11 @@ jobs:
           docker tag ghcr.io/${{ env.OWNER }}/kubespray-ee:sha-${SOURCE_SHA} \
                      ghcr.io/${{ env.OWNER }}/kubespray-ee:${{ github.ref_name }}
 
+      # Pull requests only check that the image builds. Publishing their
+      # test-merge builds is how sha-1958393 (PR #5 merged into 2.26.0, not a
+      # branch build) ended up as every cluster's EE.
       - name: Push Image to GitHub Container Registry
+        if: github.event_name == 'push'
         uses: redhat-actions/push-to-registry@v2
         with:
           image: ghcr.io/${{ env.OWNER }}/kubespray-ee
