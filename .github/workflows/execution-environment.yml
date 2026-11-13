@@ -87,10 +87,14 @@ jobs:
             --tag=ghcr.io/${{ env.OWNER }}/kubespray-ee:sha-${SHORT_SHA} \
             --container-runtime=docker
 
-          # Also tag with ref name (branch), so both tags exist locally
-          echo "🏷️ Tagging image with ref: ${{ github.ref_name }}"
-          docker tag ghcr.io/${{ env.OWNER }}/kubespray-ee:sha-${SHORT_SHA} \
-                    ghcr.io/${{ env.OWNER }}/kubespray-ee:${{ github.ref_name }}
+          # Also tag with the branch name on pushes, so both tags exist
+          # locally. A pull request's ref name (e.g. 7/merge) isn't a valid
+          # image tag, and PR images aren't pushed anyway.
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "🏷️ Tagging image with ref: ${{ github.ref_name }}"
+            docker tag ghcr.io/${{ env.OWNER }}/kubespray-ee:sha-${SHORT_SHA} \
+                      ghcr.io/${{ env.OWNER }}/kubespray-ee:${{ github.ref_name }}
+          fi
 
       - name: Re-tag existing image
         if: github.event_name == 'push' && steps.check-image.outputs.image_exists ==
