@@ -29,7 +29,15 @@ jobs:
           echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >>${GITHUB_ENV}
 
       - name: Install ansible-builder
-        run: pip install ansible-builder
+        # distlib: `ansible-galaxy collection build` needs it for galaxy.yml's
+        # manifest directives.
+        run: pip install ansible-builder ansible-core distlib
+
+      # The EE carries this commit's kubespray as an installed collection, so
+      # the image tag alone decides which kubespray AWX runs (DO-404).
+      # execution-environment.yml copies ee-collections/ into the image.
+      - name: Build the kubespray collection
+        run: ansible-galaxy collection build --output-path ee-collections .
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v1
@@ -79,10 +87,14 @@ jobs:
             --tag=ghcr.io/${{ env.OWNER }}/kubespray-ee:sha-${SHORT_SHA} \
             --container-runtime=docker
 
-          # Also tag with ref name (branch), so both tags exist locally
-          echo "🏷️ Tagging image with ref: ${{ github.ref_name }}"
-          docker tag ghcr.io/${{ env.OWNER }}/kubespray-ee:sha-${SHORT_SHA} \
-                    ghcr.io/${{ env.OWNER }}/kubespray-ee:${{ github.ref_name }}
+          # Also tag with the branch name on pushes, so both tags exist
+          # locally. A pull request's ref name (e.g. 7/merge) isn't a valid
+          # image tag, and PR images aren't pushed anyway.
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "🏷️ Tagging image with ref: ${{ github.ref_name }}"
+            docker tag ghcr.io/${{ env.OWNER }}/kubespray-ee:sha-${SHORT_SHA} \
+                      ghcr.io/${{ env.OWNER }}/kubespray-ee:${{ github.ref_name }}
+          fi
 
       - name: Re-tag existing image
         if: github.event_name == 'push' && steps.check-image.outputs.image_exists ==
@@ -105,7 +117,11 @@ jobs:
           docker tag ghcr.io/${{ env.OWNER }}/kubespray-ee:sha-${SOURCE_SHA} \
                      ghcr.io/${{ env.OWNER }}/kubespray-ee:${{ github.ref_name }}
 
+      # Pull requests only check that the image builds. Publishing their
+      # test-merge builds is how sha-1958393 (PR #5 merged into 2.26.0, not a
+      # branch build) ended up as every cluster's EE.
       - name: Push Image to GitHub Container Registry
+        if: github.event_name == 'push'
         uses: redhat-actions/push-to-registry@v2
         with:
           image: ghcr.io/${{ env.OWNER }}/kubespray-ee
